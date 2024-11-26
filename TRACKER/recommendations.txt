@@ -1,8 +1,0 @@
-# Recommendations for using aiogram
-
-## Getting Started
-
-1. **Install aiogram**:
-   Make sure you have Python installed. Then, install aiogram using pip:
-   ```sh
-   pip install aiogram

@@ -1,12 +1,13 @@
 import app.keyboards as kb
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-from aiogram import types
+from aiogram import Router, F, Bot, types
+from aiogram.types import Message, CallbackQuery,BufferedInputFile
 import logging
 import asyncio
 import os
+import re
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,6 +16,11 @@ router = Router()
 
 class UserState(StatesGroup):
     START = State()
+    waiting_for_text = State()
+    
+
+if not os.path.exists('Spam_TXT'):
+    os.makedirs('Spam_TXT')
 
 @router.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
@@ -62,7 +68,7 @@ async def Faq1(message: Message, state: FSMContext):
 @router.message(F.text == "/CSV")
 async def CSV(message: Message, state: FSMContext):
     """
-    Функция команды /CSV, подсчитывает расходы
+    Функция команды /CSV
     """
     CSV_message = "<b>...</b>\n\n" ""
 
@@ -75,7 +81,7 @@ async def CSV(message: Message, state: FSMContext):
 @router.message(F.text == "/pickle")
 async def pickle(message: Message, state: FSMContext):
     """
-    Функция команды /pickle, подсчитывает расходы
+    Функция команды /pickle
     """
     pickle_message = "<b>...</b>\n\n" ""
 
@@ -88,9 +94,13 @@ async def pickle(message: Message, state: FSMContext):
 @router.message(F.text == "/TXT")
 async def TXT(message: Message, state: FSMContext):
     """
-    Функция команды /TXT, подсчитывает расходы
+    Функция команды /TXT
     """
-    TXT_message = "<b>...</b>\n\n" ""
+    TXT_message = (
+    "<b>📝 Работа с TXT файлами 📝</b>\n\n"
+    "Здесь вы можете сохранить текст в TXT файл или загрузить уже сохраненный файл.\n\n"
+    "Выберите одну из опций ниже ⬇️"
+    )
 
     sent_message = await message.answer(
         TXT_message, parse_mode="HTML", reply_markup=kb.TXT_keyboard()
@@ -240,7 +250,11 @@ async def show_TXT(query: CallbackQuery, state: FSMContext):
     """
     Функция обработки кнопки "TXT"
     """
-    TXT_message = "<b>...</b>\n\n" ""
+    TXT_message = (
+        "<b>📝 Работа с TXT файлами 📝</b>\n\n"
+        "Здесь вы можете сохранить текст в TXT файл или загрузить уже сохраненный файл.\n\n"
+        "Выберите одну из опций ниже ⬇️"
+    )
     sent_message = await query.message.edit_text(
         TXT_message, parse_mode="HTML", reply_markup=kb.TXT_keyboard()
     )
@@ -248,35 +262,88 @@ async def show_TXT(query: CallbackQuery, state: FSMContext):
     await state.update_data(last_message_id=sent_message.message_id)
     await query.answer()
 
+# Обработчик для кнопки "Сохранить TXT"
 @router.callback_query(lambda query: query.data == "TXT_add")
-async def show_pickle_add(query: CallbackQuery, state: FSMContext):
+async def show_TXT_add(query: CallbackQuery, state: FSMContext):
     """
     Функция обработки кнопки "Сохранить TXT"
     """
-    TXT_add_message = "<b>Временно недоступно 😢</b>\n\n"
-    sent_message = await query.message.edit_text(
-        TXT_add_message,
-        parse_mode="HTML",
-        reply_markup=kb.back_to_TXT_keyboard(),
-    )
-
-    await state.update_data(last_message_id=sent_message.message_id)
+    prompt_message = await query.message.answer("Отправьте текст, который хотите сохранить в TXT файл.")
+    await state.set_state(UserState.waiting_for_text)
+    await state.update_data(prompt_message_id=prompt_message.message_id)
     await query.answer()
 
 @router.callback_query(lambda query: query.data == "TXT_load")
-async def show_pickle_add(query: CallbackQuery, state: FSMContext):
+async def show_TXT_load(query: CallbackQuery, state: FSMContext, bot: Bot):
     """
     Функция обработки кнопки "Загрузить TXT"
     """
-    TXT_load_message = "<b>Временно недоступно 😢</b>\n\n"
-    sent_message = await query.message.edit_text(
-        TXT_load_message,
-        parse_mode="HTML",
-        reply_markup=kb.back_to_TXT_keyboard(),
-    )
+    user_id = query.from_user.id
+    file_name = f"Spam_TXT/TEXT_{user_id}.txt"
 
-    await state.update_data(last_message_id=sent_message.message_id)
-    await query.answer()
+    # Удаляем менюшку
+    await query.message.delete()
+
+    if os.path.exists(file_name):
+        with open(file_name, 'rb') as file:
+            await bot.send_document(chat_id=query.message.chat.id, document=BufferedInputFile(file.read(), filename=file_name), caption="Ваш TXT файл.")
+    else:
+        error_message = await bot.send_message(chat_id=query.message.chat.id, text="Файл не найден. Пожалуйста, сначала сохраните текст.")
+        await asyncio.sleep(2)
+        await bot.delete_message(chat_id=query.message.chat.id, message_id=error_message.message_id)
+
+    # Удаляем предыдущее сообщение
+    data = await state.get_data()
+    last_message_id = data.get('last_message_id')
+    if last_message_id:
+        try:
+            await bot.delete_message(chat_id=query.message.chat.id, message_id=last_message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    await TXT(query.message, state)
+
+# Обработчик текста
+@router.message(UserState.waiting_for_text)
+async def process_text(message: types.Message, state: FSMContext, bot: Bot):
+    # Проверка наличия текста в сообщении
+    if message.text is None:
+        error_message = await message.answer("Неверный формат. Попробуйте снова.")
+        await asyncio.sleep(1)
+        await bot.delete_message(chat_id=message.chat.id, message_id=error_message.message_id)
+        await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+        return
+
+    user_id = message.from_user.id
+    file_name = f"Spam_TXT/TEXT_{user_id}.txt"
+
+    with open(file_name, 'w', encoding='utf-8') as file:
+        file.write(message.text)
+
+    success_message = await message.answer("Успешно сохранено")
+    await asyncio.sleep(1)
+    await success_message.delete()
+
+    # Удаляем все предыдущие сообщения
+    data = await state.get_data()
+    prompt_message_id = data.get('prompt_message_id')
+    last_message_id = data.get('last_message_id')
+    logger.info(f"prompt_message_id: {prompt_message_id}, last_message_id: {last_message_id}")
+    if prompt_message_id:
+        try:
+            await bot.delete_message(chat_id=message.chat.id, message_id=prompt_message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+    if last_message_id:
+        try:
+            await bot.delete_message(chat_id=message.chat.id, message_id=last_message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    await asyncio.sleep(0.5)
+    await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    await TXT(message, state)
+
 
 @router.callback_query(lambda query: query.data == "WILL_FUNC")
 async def show_WILL_FUNC(query: CallbackQuery, state: FSMContext):
@@ -347,12 +414,55 @@ async def back_to_pickle(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "back_to_TXT")
 async def back_to_TXT(query: CallbackQuery, state: FSMContext):
-    """Обработчик кнопки "назад" к окну с коммандой /TXT (TXT)"""
+    """Обработчик кнопки "назад" к окну с командой /TXT (TXT)"""
     try:
         await query.message.edit_text(
-            "<b>...</b>\n\n",
+            (
+                "<b>📝 Работа с TXT файлами 📝</b>\n\n"
+                "Здесь вы можете сохранить текст в TXT файл или загрузить уже сохраненный файл.\n\n"
+                "Выберите одну из опций ниже ⬇️"
+            ),
             parse_mode="HTML",
             reply_markup=kb.TXT_keyboard(),
         )
     except Exception as e:
         print(f"Error occurred while going back: {e}")
+
+
+
+# Обработчик для команд
+@router.message(F.text.startswith("/"))
+async def handle_command(message: Message, state: FSMContext, bot: Bot):
+    """
+    Обработчик для команд
+    """
+    # Удаляем все предыдущие сообщения, если пользователь не находится в состоянии ожидания текста
+    data = await state.get_data()
+    current_state = await state.get_state()
+    if current_state != UserState.waiting_for_text:
+        last_message_id = data.get('last_message_id')
+        if last_message_id:
+            try:
+                await bot.delete_message(chat_id=message.chat.id, message_id=last_message_id)
+            except Exception as e:
+                logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    # Обрабатываем команду
+    await cmd_start(message, state)
+
+# Обработчик для неизвестных сообщений
+@router.message()
+async def handle_unknown_message(message: Message, bot: Bot):
+    """
+    Обработчик для неизвестных сообщений
+    """
+    # Удаляем неизвестное сообщение
+    try:
+        await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    except Exception as e:
+        logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    # Уведомляем пользователя о неизвестной команде
+    unknown_message = await message.answer("Неизвестная команда. Пожалуйста, используйте одну из доступных команд.")
+    await asyncio.sleep(2)
+    await bot.delete_message(chat_id=message.chat.id, message_id=unknown_message.message_id)

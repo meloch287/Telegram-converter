@@ -39,7 +39,7 @@ def CSV_keyboard():
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Сохранить CSV", callback_data="CSV_add"
+                    text="Сохранить CSV", callback_data="CSV_structure"
                 ),
                 InlineKeyboardButton(
                     text="Загрузить CSV", callback_data="CSV_load"
@@ -50,6 +50,12 @@ def CSV_keyboard():
         ]
     )
 
+def key_value_keyboard():
+    return InlineKeyboardMarkup(
+         inline_keyboard=[
+            [InlineKeyboardButton(text="Прекратить", callback_data="stop_csv")]
+        ]
+    )
 
 def pickle_keyboard():
     return InlineKeyboardMarkup(
@@ -81,6 +87,25 @@ def TXT_keyboard():
             ],
 
             [InlineKeyboardButton(text="Назад", callback_data="back_to_start")],
+        ]
+    )
+
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+def CSV_structure():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="ключ: значение",
+                    callback_data="key_value" 
+                ),
+                InlineKeyboardButton(
+                    text="ключ: три значения",
+                    callback_data="key_value_more"
+                )
+            ],
+            [InlineKeyboardButton(text="Назад", callback_data="back_to_CSV")]
         ]
     )
 
@@ -120,5 +145,12 @@ def back_to_TXT_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Назад", callback_data="back_to_TXT")]
+        ]
+    )
+
+def back_to_CSV_keyboard_STRUCTURE():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="back_to_CSV_structure")]
         ]
     )

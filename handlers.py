@@ -1,13 +1,14 @@
+
 import app.keyboards as kb
 from aiogram import Router, F, Bot, types
-from aiogram.types import Message, CallbackQuery,BufferedInputFile
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 import logging
 import asyncio
 import os
 import re
+import csv
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,16 +18,17 @@ router = Router()
 class UserState(StatesGroup):
     START = State()
     waiting_for_text = State()
-    
+    waiting_for_key_value = State()
+    waiting_for_confirmation = State()
 
 if not os.path.exists('Spam_TXT'):
     os.makedirs('Spam_TXT')
 
+if not os.path.exists('Spam_CSV'):
+    os.makedirs('Spam_CSV')
+
 @router.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
-    """
-    Функция команды старт, вызывает окно по команде /start
-    """
     user_nickname = (
         message.from_user.username
         if message.from_user.username
@@ -47,12 +49,8 @@ async def cmd_start(message: Message, state: FSMContext):
     )
     await state.update_data(last_message_id=sent_message.message_id)
 
-
 @router.message(F.text == "/help")
 async def Faq1(message: Message, state: FSMContext):
-    """
-    Функция комманды /help
-    """
     faq_txt = (
         "Выберите одну из опций ниже для получения дополнительной информации:\n\n"
         "- <b>Ответы на вопросы:</b> Узнайте больше о функциональности бота и как им пользоваться.\n\n"
@@ -67,12 +65,9 @@ async def Faq1(message: Message, state: FSMContext):
 
 @router.message(F.text == "/CSV")
 async def CSV(message: Message, state: FSMContext):
-    """
-    Функция команды /CSV
-    """
     CSV_message = (
-        "<b>🧬 Работа с SCV файлами 🧬</b>\n\n"
-        "Здесь вы cможете сохранить текст в SCV файл, а также выбрать структуру файла или загрузить уже раннее сохраненный файл.\n\n"
+        "<b>🧬 Работа с CSV файлами 🧬</b>\n\n"
+        "Здесь вы cможете сохранить текст в CSV файл, а также выбрать структуру файла или загрузить уже раннее сохраненный файл.\n\n"
         "Выберите одну из опций ниже ⬇️"
     )
 
@@ -84,14 +79,11 @@ async def CSV(message: Message, state: FSMContext):
 
 @router.message(F.text == "/pickle")
 async def pickle(message: Message, state: FSMContext):
-    """
-    Функция команды /pickle
-    """
-    pickle_message = ( "<b>⚖️ Работа с pickle файлами ⚖️</b>\n\n"
+    pickle_message = (
+        "<b>⚖️ Работа с pickle файлами ⚖️</b>\n\n"
         "Здесь вы cможете сохранить текст в pickle файл или загрузить уже раннее сохраненный файл.\n\n"
         "Выберите одну из опций ниже ⬇️"
     )
-
 
     sent_message = await message.answer(
         pickle_message, parse_mode="HTML", reply_markup=kb.pickle_keyboard()
@@ -101,13 +93,10 @@ async def pickle(message: Message, state: FSMContext):
 
 @router.message(F.text == "/TXT")
 async def TXT(message: Message, state: FSMContext):
-    """
-    Функция команды /TXT
-    """
     TXT_message = (
-    "<b>📝 Работа с TXT файлами 📝</b>\n\n"
-    "Здесь вы можете сохранить текст в TXT файл или загрузить уже сохраненный файл.\n\n"
-    "Выберите одну из опций ниже ⬇️"
+        "<b>📝 Работа с TXT файлами 📝</b>\n\n"
+        "Здесь вы можете сохранить текст в TXT файл или загрузить уже сохраненный файл.\n\n"
+        "Выберите одну из опций ниже ⬇️"
     )
 
     sent_message = await message.answer(
@@ -116,12 +105,8 @@ async def TXT(message: Message, state: FSMContext):
 
     await state.update_data(last_message_id=sent_message.message_id)
 
-# Обработчики
 @router.callback_query(lambda query: query.data == "help")
 async def Faq2(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "Тех. поддержка"
-    """
     faq_txt = (
         "Выберите одну из опций ниже для получения дополнительной информации:\n\n"
         "- <b>Ответы на вопросы:</b> Узнайте больше о функциональности бота и как им пользоваться.\n\n"
@@ -137,9 +122,6 @@ async def Faq2(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "faq")
 async def show_faq(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "ответы на вопросы"
-    """
     faq_details = (
         "<b>Ответы на вопросы:</b>\n\n"
     )
@@ -153,9 +135,6 @@ async def show_faq(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "feedback")
 async def show_feedback(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "Обратная связь"
-    """
     feedback_details = (
         "<b>Обратная связь:</b>\n\n"
         "Если у вас возникли вопросы или проблемы, свяжитесь с нашей службой поддержки  --> (@jokessssv)"
@@ -169,9 +148,6 @@ async def show_feedback(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "CSV")
 async def show_CSV(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "CSV"
-    """
     CSV_message = (
         "<b>🧬 Работа с SCV файлами 🧬</b>\n\n"
         "Здесь вы cможете сохранить текст в SCV файл, а также выбрать структуру файла или загрузить уже раннее сохраненный файл.\n\n"
@@ -184,14 +160,128 @@ async def show_CSV(query: CallbackQuery, state: FSMContext):
     await state.update_data(last_message_id=sent_message.message_id)
     await query.answer()
 
-@router.callback_query(lambda query: query.data == "CSV_add")
-async def show_CSV_add(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "Сохранить CSV"
-    """
-    CSV_add_message = "<b>Временно недоступно 😢</b>\n\n"
+@router.callback_query(lambda query: query.data == "CSV_structure")
+async def show_CSV_structure(query: CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    message_ids = user_data.get('message_ids', [])
+
+    for message_id in message_ids:
+        try:
+            await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    try:
+        await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=query.message.message_id)
+    except Exception as e:
+        logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    CSV_structure_message = "<b>Выберите структуру CSV файла: </b>\n\n"
+    sent_message = await query.message.answer(
+        CSV_structure_message,
+        parse_mode="HTML",
+        reply_markup=kb.CSV_structure(),
+    )
+
+    message_ids = [sent_message.message_id]  # Обновляем список message_ids
+    await state.update_data(message_ids=message_ids)
+    await query.answer()
+
+@router.callback_query(lambda query: query.data == "key_value")
+async def show_CSV_add_1str(query: CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    message_ids = user_data.get('message_ids', [])
+
+    # Удаление предыдущих сообщений
+    for message_id in message_ids:
+        try:
+            await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    await state.set_state(UserState.waiting_for_key_value)
+    await state.update_data(message_ids=[])
+    sent_message = await query.message.answer("Введите ключ и значение в формате 'ключ - значение':", reply_markup=kb.back_to_CSV_keyboard_STRUCTURE())
+    message_ids = [sent_message.message_id]  # Обновляем список message_ids
+    await state.update_data(message_ids=message_ids)
+    await query.answer()
+
+@router.message(UserState.waiting_for_key_value)
+async def process_key_value(message: Message, state: FSMContext):
+    user_data = await state.get_data()
+    key_value_pairs = user_data.get('key_value_pairs', [])
+    message_ids = user_data.get('message_ids', [])
+
+    try:
+        key, value = message.text.split(' - ')
+        key_value_pairs.append((key, value))
+        await state.update_data(key_value_pairs=key_value_pairs)
+        await state.set_state(UserState.waiting_for_confirmation)
+        sent_message = await message.answer("Хотите ввести еще одно значение?", reply_markup=kb.key_value_keyboard())
+        message_ids.append(sent_message.message_id)
+        message_ids.append(message.message_id)
+        await state.update_data(message_ids=message_ids)
+    except ValueError:
+        error_message = await message.answer(f"Неверный формат. \n\nПожалуйста, введите в формате 'ключ - значение'.")
+        message_ids.append(error_message.message_id)
+        message_ids.append(message.message_id)
+        await state.update_data(message_ids=message_ids)
+
+@router.callback_query(lambda query: query.data == "stop_csv")
+async def stop_csv(query: CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    key_value_pairs = user_data.get('key_value_pairs', [])
+    message_ids = user_data.get('message_ids', [])
+
+    if key_value_pairs:
+        user_id = query.from_user.id
+        file_name = f"Spam_CSV/CSV_{user_id}.csv"
+
+        with open(file_name, 'w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerow(["ключ : значение"])
+            for key, value in key_value_pairs:
+                writer.writerow([f"{key} : {value}"])
+
+        await query.message.answer(f"CSV файл успешно сохранен как {file_name}", reply_markup=kb.back_to_CSV_keyboard())
+    else:
+        await query.message.answer("Нет данных для сохранения.", reply_markup=kb.back_to_CSV_keyboard())
+
+    # Удаление всех предыдущих сообщений
+    for message_id in message_ids:
+        try:
+            await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    await state.clear()
+    await query.answer()
+
+@router.message(UserState.waiting_for_confirmation)
+async def process_confirmation(message: Message, state: FSMContext):
+    user_data = await state.get_data()
+    key_value_pairs = user_data.get('key_value_pairs', [])
+    message_ids = user_data.get('message_ids', [])
+
+    try:
+        key, value = message.text.split(' - ')
+        key_value_pairs.append((key, value))
+        await state.update_data(key_value_pairs=key_value_pairs)
+        sent_message = await message.answer("Хотите ввести еще одно значение?", reply_markup=kb.key_value_keyboard())
+        message_ids.append(sent_message.message_id)
+        message_ids.append(message.message_id)
+        await state.update_data(message_ids=message_ids)
+    except ValueError:
+        error_message = await message.answer("Неверный формат. Пожалуйста, введите в формате 'ключ - значение'.")
+        message_ids.append(error_message.message_id)
+        message_ids.append(message.message_id)
+        await state.update_data(message_ids=message_ids)
+
+@router.callback_query(lambda query: query.data == "key_value_more")
+async def show_CSV_add_3str(query: CallbackQuery, state: FSMContext):
+    CSV_add_3str_message = "<b>Временно недоступно 😢</b>\n\n"
     sent_message = await query.message.edit_text(
-        CSV_add_message,
+        CSV_add_3str_message,
         parse_mode="HTML",
         reply_markup=kb.back_to_CSV_keyboard(),
     )
@@ -200,41 +290,23 @@ async def show_CSV_add(query: CallbackQuery, state: FSMContext):
     await query.answer()
 
 @router.callback_query(lambda query: query.data == "CSV_load")
-async def show_CSV_add(query: CallbackQuery, state: FSMContext):
+async def show_CSV_load(query: CallbackQuery, state: FSMContext):
     """
     Функция обработки кнопки "Загрузить CSV"
     """
-    CSV_load_message = "<b>Временно недоступно 😢</b>\n\n"
-    sent_message = await query.message.edit_text(
-        CSV_load_message,
-        parse_mode="HTML",
-        reply_markup=kb.back_to_CSV_keyboard(),
-    )
+    user_id = query.from_user.id
+    file_name = f"Spam_csv/CSV_{user_id}.csv"
 
-    await state.update_data(last_message_id=sent_message.message_id)
-    await query.answer()
+    if os.path.exists(file_name):
+        document = BufferedInputFile(open(file_name, 'rb').read(), filename=file_name)
+        await query.message.answer_document(document, caption="Вот ваш CSV файл.")
+    else:
+        await query.message.answer("Файл не найден.")
 
-@router.callback_query(lambda query: query.data == "pickle")
-async def show_pickle(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "pickle"
-    """
-    pickle_message =( 
-        "<b>⚖️ Работа с pickle файлами ⚖️</b>\n\n"
-        "Здесь вы cможете сохранить текст в pickle файл или загрузить уже раннее сохраненный файл.\n\n"
-        "Выберите одну из опций ниже ⬇️")
-    sent_message = await query.message.edit_text(
-        pickle_message, parse_mode="HTML", reply_markup=kb.pickle_keyboard()
-    )
-
-    await state.update_data(last_message_id=sent_message.message_id)
     await query.answer()
 
 @router.callback_query(lambda query: query.data == "pickle_add")
 async def show_pickle_add(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "Сохранить pickle"
-    """
     pickle_add_message = "<b>Временно недоступно 😢</b>\n\n"
     sent_message = await query.message.edit_text(
         pickle_add_message,
@@ -247,9 +319,6 @@ async def show_pickle_add(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "pickle_load")
 async def show_pickle_add(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "Загрузить pickle"
-    """
     pickle_load_message = "<b>Временно недоступно 😢</b>\n\n"
     sent_message = await query.message.edit_text(
         pickle_load_message,
@@ -262,9 +331,6 @@ async def show_pickle_add(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "TXT")
 async def show_TXT(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "TXT"
-    """
     TXT_message = (
         "<b>📝 Работа с TXT файлами 📝</b>\n\n"
         "Здесь вы можете сохранить текст в TXT файл или загрузить уже сохраненный файл.\n\n"
@@ -277,12 +343,8 @@ async def show_TXT(query: CallbackQuery, state: FSMContext):
     await state.update_data(last_message_id=sent_message.message_id)
     await query.answer()
 
-# Обработчик для кнопки "Сохранить TXT"
 @router.callback_query(lambda query: query.data == "TXT_add")
 async def show_TXT_add(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "Сохранить TXT"
-    """
     prompt_message = await query.message.answer("Отправьте текст, который хотите сохранить в TXT файл.")
     await state.set_state(UserState.waiting_for_text)
     await state.update_data(prompt_message_id=prompt_message.message_id)
@@ -290,9 +352,6 @@ async def show_TXT_add(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "TXT_load")
 async def show_TXT_load(query: CallbackQuery, state: FSMContext, bot: Bot):
-    """
-    Функция обработки кнопки "Загрузить TXT"
-    """
     user_id = query.from_user.id
     file_name = f"Spam_TXT/TEXT_{user_id}.txt"
 
@@ -318,7 +377,6 @@ async def show_TXT_load(query: CallbackQuery, state: FSMContext, bot: Bot):
 
     await TXT(query.message, state)
 
-# Обработчик текста
 @router.message(UserState.waiting_for_text)
 async def process_text(message: types.Message, state: FSMContext, bot: Bot):
     # Проверка наличия текста в сообщении
@@ -359,12 +417,8 @@ async def process_text(message: types.Message, state: FSMContext, bot: Bot):
     await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
     await TXT(message, state)
 
-
 @router.callback_query(lambda query: query.data == "WILL_FUNC")
 async def show_WILL_FUNC(query: CallbackQuery, state: FSMContext):
-    """
-    Функция обработки кнопки "Будущие функции"
-    """
     WILL_FUNC_massege = "<b>Временно недоступно 😢</b>\n\n"
     sent_message = await query.message.edit_text(
         WILL_FUNC_massege, parse_mode="HTML", reply_markup=kb.back_to_help_keyboard()
@@ -373,9 +427,37 @@ async def show_WILL_FUNC(query: CallbackQuery, state: FSMContext):
     await state.update_data(last_message_id=sent_message.message_id)
     await query.answer()
 
+@router.callback_query(lambda query: query.data == "back_to_CSV_structure")
+async def back_to_CSV_structure(query: CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    message_ids = user_data.get('message_ids', [])
+
+    # Удаление предыдущих сообщений
+    for message_id in message_ids:
+        try:
+            await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    # Удаление сообщения "🧬 Работа с SCV файлами 🧬"
+    try:
+        await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=query.message.message_id)
+    except Exception as e:
+        logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    CSV_structure_message = "<b>Выберите структуру CSV файла: </b>\n\n"
+    sent_message = await query.message.answer(
+        CSV_structure_message,
+        parse_mode="HTML",
+        reply_markup=kb.CSV_structure(),
+    )
+
+    message_ids.append(sent_message.message_id)
+    await state.update_data(message_ids=message_ids)
+    await query.answer()
+
 @router.callback_query(lambda query: query.data == "back_to_start")
 async def back_to_start(query: CallbackQuery, state: FSMContext):
-    """Обработчик возвращения к стартовому меню"""
     try:
         await query.message.edit_text(
             "<b>🌸 Добро пожаловать в Daydream! 🌸</b>\n\n"
@@ -391,7 +473,6 @@ async def back_to_start(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "back_to_help")
 async def back_to_help(query: CallbackQuery, state: FSMContext):
-    """Обработчик кнопки "назад" к окну с коммандой /help"""
     try:
         await query.message.edit_text(
             "Выберите одну из опций ниже для получения дополнительной информации:\n\n"
@@ -405,36 +486,37 @@ async def back_to_help(query: CallbackQuery, state: FSMContext):
 
 @router.callback_query(lambda query: query.data == "back_to_CSV")
 async def back_to_CSV(query: CallbackQuery, state: FSMContext):
-    """Обработчик кнопки "назад" к окну с коммандой /CSV (CSV)"""
-    try:
-        await query.message.edit_text(
+    user_data = await state.get_data()
+    message_ids = user_data.get('message_ids', [])
 
-        "<b>🧬 Работа с SCV файлами 🧬</b>\n\n"
-        "Здесь вы cможете сохранить текст в SCV файл, а также выбрать структуру файла или загрузить уже раннее сохраненный файл.\n\n"
-        "Выберите одну из опций ниже ⬇️",
-            parse_mode="HTML",
-            reply_markup=kb.CSV_keyboard(),
-        )
-    except Exception as e:
-        print(f"Error occurred while going back: {e}")
+    # Удаление предыдущих сообщений
+    for message_id in message_ids:
+        try:
+            await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
 
-@router.callback_query(lambda query: query.data == "back_to_pickle")
-async def back_to_pickle(query: CallbackQuery, state: FSMContext):
-    """Обработчик кнопки "назад" к окну с коммандой /pickle (pickle)"""
+    # Удаление текущего сообщения
     try:
-        await query.message.edit_text(
-                "<b>⚖️ Работа с pickle файлами ⚖️</b>\n\n"
-                "Здесь вы cможете сохранить текст в pickle файл или загрузить уже раннее сохраненный файл.\n\n"
-                "Выберите одну из опций ниже ⬇️",
-            parse_mode="HTML",
-            reply_markup=kb.pickle_keyboard(),
-        )
+        await query.message.bot.delete_message(chat_id=query.message.chat.id, message_id=query.message.message_id)
     except Exception as e:
-        print(f"Error occurred while going back: {e}")
+        logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    CSV_message = (
+        "<b>🧬 Работа с CSV файлами 🧬</b>\n\n"
+        "Здесь вы cможете сохранить текст в CSV файл, а также выбрать структуру файла или загрузить уже раннее сохраненный файл.\n\n"
+        "Выберите одну из опций ниже ⬇️"
+    )
+    sent_message = await query.message.answer(
+        CSV_message, parse_mode="HTML", reply_markup=kb.CSV_keyboard()
+    )
+
+    message_ids = [sent_message.message_id]  # Обновляем список message_ids
+    await state.update_data(message_ids=message_ids)
+    await query.answer()
 
 @router.callback_query(lambda query: query.data == "back_to_TXT")
 async def back_to_TXT(query: CallbackQuery, state: FSMContext):
-    """Обработчик кнопки "назад" к окну с командой /TXT (TXT)"""
     try:
         await query.message.edit_text(
             (
@@ -448,15 +530,8 @@ async def back_to_TXT(query: CallbackQuery, state: FSMContext):
     except Exception as e:
         print(f"Error occurred while going back: {e}")
 
-
-
-# Обработчик для команд
 @router.message(F.text.startswith("/"))
 async def handle_command(message: Message, state: FSMContext, bot: Bot):
-    """
-    Обработчик для команд
-    """
-    # Удаляем все предыдущие сообщения, если пользователь не находится в состоянии ожидания текста
     data = await state.get_data()
     current_state = await state.get_state()
     if current_state != UserState.waiting_for_text:
@@ -467,22 +542,16 @@ async def handle_command(message: Message, state: FSMContext, bot: Bot):
             except Exception as e:
                 logger.error(f"Ошибка при удалении сообщения: {e}")
 
-    # Обрабатываем команду
     await cmd_start(message, state)
 
-# Обработчик для неизвестных сообщений
 @router.message()
 async def handle_unknown_message(message: Message, bot: Bot):
-    """
-    Обработчик для неизвестных сообщений
-    """
-    # Удаляем неизвестное сообщение
     try:
         await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
     except Exception as e:
         logger.error(f"Ошибка при удалении сообщения: {e}")
 
-    # Уведомляем пользователя о неизвестной команде
     unknown_message = await message.answer("Неизвестная команда. Пожалуйста, используйте одну из доступных команд.")
     await asyncio.sleep(2)
     await bot.delete_message(chat_id=message.chat.id, message_id=unknown_message.message_id)
+

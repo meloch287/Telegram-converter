@@ -170,6 +170,8 @@ async def process_file(message, state: FSMContext):
 
     await state.clear()
 
+#####################################################################################################################################################
+
 @router.callback_query(lambda query: query.data == "help")
 async def Faq2(query: CallbackQuery, state: FSMContext):
     faq_txt = (
@@ -660,7 +662,6 @@ async def back_to_TXT_MENU(query: CallbackQuery, state: FSMContext):
     await state.update_data(message_ids=message_ids)
     await query.answer()
     
-
 @router.callback_query(lambda query: query.data == "back_to_CSV_structure")
 async def back_to_CSV_structure(query: CallbackQuery, state: FSMContext):
     user_data = await state.get_data()

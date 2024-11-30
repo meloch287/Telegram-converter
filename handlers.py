@@ -144,26 +144,22 @@ async def process_file(message, state: FSMContext):
     file = await message.bot.get_file(file_id)
     file_path = file.file_path
 
-    # Создаем директорию Spam_FILE, если она не существует
-    spam_dir = "Spam_FILE"
-    os.makedirs(spam_dir, exist_ok=True)
-
-    # Локальный путь для сохранения файла
-    local_file_path = os.path.join(spam_dir, f"downloaded_{file_id}.txt")
-    await message.bot.download_file(file_path, destination=local_file_path)
+    # Скачиваем файл в память
+    file_content = await message.bot.download_file(file_path)
+    file_content = file_content.read().decode('utf-8')
 
     try:
         # Конвертация файла в CSV
-        with open(local_file_path, 'r', encoding='utf-8') as in_file:
-            stripped = (line.strip() for line in in_file)
-            lines = (line.split(",") for line in stripped if line)
-            output_file_path = local_file_path.replace('.txt', '.csv')
-            with open(output_file_path, 'w', encoding='utf-8') as out_file:
-                writer = csv.writer(out_file)
-                writer.writerows(lines)
+        in_file = io.StringIO(file_content)
+        stripped = (line.strip() for line in in_file)
+        lines = (line.split(",") for line in stripped if line)
+        output_file = io.StringIO()
+        writer = csv.writer(output_file)
+        writer.writerows(lines)
+        output_file.seek(0)
 
         # Отправка конвертированного файла
-        document_to_send = FSInputFile(output_file_path)
+        document_to_send = BufferedInputFile(output_file.getvalue().encode('utf-8'), filename=f"{os.path.splitext(file_name)[0]}.csv")
         await message.answer_document(document=document_to_send)
     except UnicodeDecodeError as e:
         logger.error(f"UnicodeDecodeError: {e}")
@@ -173,7 +169,6 @@ async def process_file(message, state: FSMContext):
         await message.answer("Произошла неожиданная ошибка. Пожалуйста, попробуйте еще раз.")
 
     await state.clear()
-
 
 @router.callback_query(lambda query: query.data == "help")
 async def Faq2(query: CallbackQuery, state: FSMContext):

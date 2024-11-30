@@ -11,7 +11,7 @@ def start_keyboard():
                 InlineKeyboardButton(text="🎄 CSV 🎄", callback_data="CSV"),
                 InlineKeyboardButton(text="☃️ pickle ☃️ ", callback_data="pickle")
             ],
-            # [InlineKeyboardButton(text="💼 Личный кабинет 💼 ", callback_data="kab")],
+            [InlineKeyboardButton(text="✈️  Конвертация  ✈️", callback_data="Konvertart")],
             [
                 InlineKeyboardButton(
                     text="👨‍💻 Тех.поддержка 👨‍💻", callback_data="help"
@@ -25,11 +25,11 @@ def help_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Обратная связь", callback_data="feedback"),
-                InlineKeyboardButton(text="Ответы на вопросы", callback_data="faq"),
+                InlineKeyboardButton(text="Обратная связь 🧑🏻‍💻", callback_data="feedback"),
+                InlineKeyboardButton(text="Ответы на вопросы 📑", callback_data="faq"),
             ],
-            [InlineKeyboardButton(text="Будущие Функции", callback_data="WILL_FUNC")],
-            [InlineKeyboardButton(text="Назад", callback_data="back_to_start")],
+            [InlineKeyboardButton(text="Будущие Функции 📈", callback_data="WILL_FUNC")],
+            [InlineKeyboardButton(text="Назад 🔙", callback_data="back_to_start")],
         ]
     )
 
@@ -90,7 +90,6 @@ def TXT_keyboard():
         ]
     )
 
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def CSV_structure():
     return InlineKeyboardMarkup(
@@ -108,7 +107,6 @@ def CSV_structure():
             [InlineKeyboardButton(text="Назад", callback_data="back_to_CSV")]
         ]
     )
-
 
 def back_to_start_keyboard():
     return InlineKeyboardMarkup(
@@ -152,5 +150,12 @@ def back_to_CSV_keyboard_STRUCTURE():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Назад", callback_data="back_to_CSV_structure")]
+        ]
+    )
+
+def back_to_TXT_keyboard_MENU():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="back_to_TXT_MENU")]
         ]
     )

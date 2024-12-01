@@ -25,7 +25,8 @@ class UserState(StatesGroup):
     waiting_for_confirmation = State()
     waiting_for_key_value_more = State()
     waiting_for_file = State()
-    
+    waiting_menu = State() 
+
 if not os.path.exists('Spam_TXT'):
     os.makedirs('Spam_TXT')
 
@@ -122,13 +123,29 @@ async def show_convert_file_message(query: CallbackQuery, state: FSMContext):
         "Теперь вы можете конвертировать различные типы файлов в другие форматы прямо через нашего бота. Поддерживаемые форматы конвертации:\n\n"
         "1. TXT В CSV\n\n"
         ""
-        "Пожалуйста, загрузите файл, который вы хотите конвертировать, и следуйте инструкциям.\n\n"
-        "С уважением,\n"
-        "Команда поддержки"
+        "Пожалуйста, выберите цифру формата файлов которые хотите конвертировать.\n\n"
     )
-    await state.set_state(UserState.waiting_for_file)
+    await state.set_state(UserState.waiting_menu)  # Устанавливаем состояние waiting_menu
     await query.message.edit_text(convert_message, parse_mode="HTML", reply_markup=kb.back_to_start_keyboard())
+    await state.update_data(last_message_id=query.message.message_id)
     await query.answer()
+
+@router.message(F.text.lower() == "1" or F.text.lower() == "один")
+async def confirm_conversion(message: Message, state: FSMContext):
+    data = await state.get_data()
+    last_message_id = data.get('last_message_id')
+    if last_message_id:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=last_message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    convert_message = ( "Пожалуйста, загрузите файл, который вы хотите конвертировать в csv.")
+    sent_message = await message.answer(convert_message, parse_mode="HTML", reply_markup=kb.back_to_start_keyboard())
+    await state.update_data(last_message_id=sent_message.message_id)
+    await state.set_state(UserState.waiting_for_file)
+    await asyncio.sleep(20)
+    await message.bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
 
 @router.message(UserState.waiting_for_file, F.document)
 async def process_file(message, state: FSMContext):
@@ -169,6 +186,7 @@ async def process_file(message, state: FSMContext):
         await message.answer("Произошла неожиданная ошибка. Пожалуйста, попробуйте еще раз.")
 
     await state.clear()
+    await cmd_start(message, state) 
 
 #####################################################################################################################################################
 
@@ -662,6 +680,7 @@ async def back_to_TXT_MENU(query: CallbackQuery, state: FSMContext):
     await state.update_data(message_ids=message_ids)
     await query.answer()
     
+
 @router.callback_query(lambda query: query.data == "back_to_CSV_structure")
 async def back_to_CSV_structure(query: CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
@@ -799,6 +818,7 @@ async def handle_unknown_message(message: Message, bot: Bot):
         await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
     except Exception as e:
         logger.error(f"Ошибка при удалении сообщения: {e}")
+
 
     unknown_message = await message.answer("Неизвестная команда. Пожалуйста, используйте одну из доступных команд.")
     await asyncio.sleep(2)

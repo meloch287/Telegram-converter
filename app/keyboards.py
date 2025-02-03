@@ -57,6 +57,14 @@ def key_value_keyboard():
         ]
     )
 
+def pickle_key_value_keyboard():
+    return InlineKeyboardMarkup(
+         inline_keyboard=[
+            [InlineKeyboardButton(text="Прекратить", callback_data="pickle_stop")]
+        ]
+    )
+
+
 def pickle_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -98,10 +106,6 @@ def CSV_structure():
                 InlineKeyboardButton(
                     text="ключ: значение",
                     callback_data="key_value" 
-                ),
-                InlineKeyboardButton(
-                    text="ключ: три значения",
-                    callback_data="key_value_more"
                 )
             ],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_CSV")]

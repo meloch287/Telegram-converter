@@ -1,7 +1,6 @@
-
 import app.keyboards as kb
 from aiogram import Router, F, Bot, types
-from aiogram.types import Message, CallbackQuery, BufferedInputFile,Document,InputFile
+from aiogram.types import Message, CallbackQuery, BufferedInputFile, Document, InputFile
 import logging
 import asyncio
 import os
@@ -12,6 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 import io
 import pandas as pd
 from aiogram.types.input_file import FSInputFile
+import pickle
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,13 +25,18 @@ class UserState(StatesGroup):
     waiting_for_confirmation = State()
     waiting_for_key_value_more = State()
     waiting_for_file = State()
-    waiting_menu = State() 
+    waiting_menu = State()
+    waiting_for_pickle_key_value = State()
+    waiting_for_pickle_confirmation = State()
 
 if not os.path.exists('Spam_TXT'):
     os.makedirs('Spam_TXT')
 
 if not os.path.exists('Spam_CSV'):
     os.makedirs('Spam_CSV')
+
+if not os.path.exists('Spam_Pickle'):
+    os.makedirs('Spam_Pickle')
 
 #####################################################################################################################################################
 
@@ -86,7 +91,7 @@ async def CSV(message: Message, state: FSMContext):
     await state.update_data(last_message_id=sent_message.message_id)
 
 @router.message(F.text == "/pickle")
-async def pickle(message: Message, state: FSMContext):
+async def pickle1(message: Message, state: FSMContext):
     pickle_message = (
         "<b>⚖️ Работа с pickle файлами ⚖️</b>\n\n"
         "Здесь вы cможете сохранить текст в pickle файл или загрузить уже раннее сохраненный файл.\n\n"
@@ -254,7 +259,6 @@ async def show_CSV_structure(query: CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
     message_ids = user_data.get('message_ids', [])
 
-    
     for message_id in message_ids:
         if message_id != query.message.message_id:  
             try:
@@ -288,7 +292,7 @@ async def show_CSV_add_1str(query: CallbackQuery, state: FSMContext):
     await state.set_state(UserState.waiting_for_key_value)
     await state.update_data(message_ids=[])
     sent_message = await query.message.edit_text(
-        "Введите ваши элементы в формате 'ключ - значение':",
+        "Введите ваши элементы в формате 'ключ - значение': ",
         reply_markup=kb.back_to_CSV_keyboard_STRUCTURE()
     )
     message_ids = [sent_message.message_id]
@@ -302,16 +306,43 @@ async def process_key_value(message: Message, state: FSMContext):
     message_ids = user_data.get('message_ids', [])
 
     try:
-        key, value = message.text.split(' - ')
-        key_value_pairs.append((key, value))
+        # Разбиваем сообщение на строки
+        lines = message.text.split('\n')
+        
+        # Обрабатываем каждую строку
+        for line in lines:
+            # Убираем лишние пробелы и проверяем формат
+            line = line.strip()
+            if line:
+                key, value = line.split(' - ')
+                key_value_pairs.append((key.strip(), value.strip()))
+
+        # Обновляем данные в состоянии
         await state.update_data(key_value_pairs=key_value_pairs)
+        
+        # Переводим пользователя в состояние ожидания подтверждения
         await state.set_state(UserState.waiting_for_confirmation)
-        sent_message = await message.answer("Хотите ввести еще одно значение?", reply_markup=kb.key_value_keyboard())
+        
+        # Отправляем сообщение с вопросом о добавлении новых данных
+        sent_message = await message.answer(
+            "Хотите ввести еще одно значение?",
+            reply_markup=kb.key_value_keyboard()
+        )
+        
+        # Обновляем список message_ids
         message_ids.append(sent_message.message_id)
         message_ids.append(message.message_id)
         await state.update_data(message_ids=message_ids)
+
     except ValueError:
-        error_message = await message.answer(f"Неверный формат. \n\nПожалуйста, введите только один элемент в формате 'ключ - значение'.")
+        # Если формат неправильный, отправляем сообщение об ошибке
+        error_message = await message.answer(
+            "Неверный формат. Пожалуйста, введите данные в формате:\n"
+            "ключ - значение\n"
+            "Например:\n"
+            "яблоко - 200\n"
+            "апельсин - 400"
+        )
         message_ids.append(error_message.message_id)
         message_ids.append(message.message_id)
         await state.update_data(message_ids=message_ids)
@@ -345,32 +376,6 @@ async def stop_csv(query: CallbackQuery, state: FSMContext):
     await state.clear()
     await query.answer()
 
-@router.message(UserState.waiting_for_key_value)
-async def process_key_value(message: Message, state: FSMContext):
-    user_data = await state.get_data()
-    key_value_pairs = user_data.get('key_value_pairs', [])
-    message_ids = user_data.get('message_ids', [])
-
-    try:
-        pattern = re.compile(r'(\w+)\s*-\s*(\w+)')
-        matches = pattern.findall(message.text)
-
-        for match in matches:
-            key, value = match
-            key_value_pairs.append((key, value))
-
-        await state.update_data(key_value_pairs=key_value_pairs)
-        await state.set_state(UserState.waiting_for_confirmation)
-        sent_message = await message.answer("Хотите ввести еще одно значение?", reply_markup=kb.key_value_keyboard())
-        message_ids.append(sent_message.message_id)
-        message_ids.append(message.message_id)
-        await state.update_data(message_ids=message_ids)
-    except ValueError:
-        error_message = await message.answer(f"Неверный формат. \n\nПожалуйста, введите в формате 'ключ - значение'.")
-        message_ids.append(error_message.message_id)
-        message_ids.append(message.message_id)
-        await state.update_data(message_ids=message_ids)
-
 @router.message(UserState.waiting_for_confirmation)
 async def process_confirmation(message: Message, state: FSMContext):
     user_data = await state.get_data()
@@ -378,7 +383,6 @@ async def process_confirmation(message: Message, state: FSMContext):
     message_ids = user_data.get('message_ids', [])
 
     try:
-        # Используем регулярное выражение для разбора строк
         pattern = re.compile(r'(\w+)\s*-\s*(\w+)')
         matches = pattern.findall(message.text)
 
@@ -396,66 +400,6 @@ async def process_confirmation(message: Message, state: FSMContext):
         message_ids.append(error_message.message_id)
         message_ids.append(message.message_id)
         await state.update_data(message_ids=message_ids)
-
-# Обработчик callback-запроса для отображения запроса на ввод данных в другом формате
-@router.callback_query(lambda query: query.data == "key_value_more")
-async def show_CSV_add_3str(query: CallbackQuery, state: FSMContext):
-    CSV_add_3str_message = (
-        "Введите ваши элементы в формате: \n\n"
-        "1️⃣ - 'ключ - значение1, значение2'\n\n"
-        "2️⃣ - 'ключ1, ключ2 - значение'"
-    )
-    sent_message = await query.message.edit_text(
-        CSV_add_3str_message,
-        parse_mode="HTML",
-        reply_markup=kb.back_to_CSV_keyboard(),
-    )
-
-    await state.set_state(UserState.waiting_for_key_value_more)
-    await state.update_data(last_message_id=sent_message.message_id)
-    await query.answer()
-
-# Обработчик сообщений для ввода данных в формате "ключ - значение1, значение2" и "ключ1, ключ2 - значение"
-@router.message(UserState.waiting_for_key_value_more)
-async def process_key_value_more(message: Message, state: FSMContext):
-    user_data = await state.get_data()
-    key_value_pairs = user_data.get('key_value_pairs', [])
-    message_ids = user_data.get('message_ids', [])
-
-    try:
-        # Обработка формата "ключ - значение1, значение2"
-        pattern1 = re.compile(r'(\w+)\s*-\s*([\w,]+)')
-        matches1 = pattern1.findall(message.text)
-
-        for match in matches1:
-            key, values = match
-            values_list = values.split(',')
-            for value in values_list:
-                key_value_pairs.append((key.strip(), value.strip()))
-
-        # Обработка формата "ключ1, ключ2 - значение"
-        pattern2 = re.compile(r'([\w,]+)\s*-\s*(\w+)')
-        matches2 = pattern2.findall(message.text)
-
-        for match in matches2:
-            keys, value = match
-            keys_list = keys.split(',')
-            for key in keys_list:
-                key_value_pairs.append((key.strip(), value.strip()))
-
-        await state.update_data(key_value_pairs=key_value_pairs)
-        await state.set_state(UserState.waiting_for_confirmation)
-        sent_message = await message.answer("Хотите ввести еще одно значение?", reply_markup=kb.key_value_keyboard())
-        message_ids.append(sent_message.message_id)
-        message_ids.append(message.message_id)
-        await state.update_data(message_ids=message_ids)
-    except ValueError:
-        error_message = await message.answer(f"Неверный формат. \n\nПожалуйста, введите в одном из форматов:\n\n1️⃣ - 'ключ - значение1, значение2'\n\n2️⃣ - 'ключ1, ключ2 - значение'.")
-        message_ids.append(error_message.message_id)
-        message_ids.append(message.message_id)
-        await state.update_data(message_ids=message_ids)
-
-
 
 @router.callback_query(lambda query: query.data == "CSV_load")
 async def show_CSV_load(query: CallbackQuery, state: FSMContext, bot: Bot):
@@ -489,8 +433,8 @@ async def show_CSV_load(query: CallbackQuery, state: FSMContext, bot: Bot):
     await state.update_data(last_message_id=sent_message.message_id)
     await query.answer()
 
-
 #####################################################################################################################################################
+
 
 @router.callback_query(lambda query: query.data == "pickle")
 async def show_pickle(query: CallbackQuery, state: FSMContext):
@@ -506,40 +450,138 @@ async def show_pickle(query: CallbackQuery, state: FSMContext):
     await state.update_data(last_message_id=sent_message.message_id)
     await query.answer()
 
-
+# Обработчик для добавления данных в pickle файл
 @router.callback_query(lambda query: query.data == "pickle_add")
 async def show_pickle_add(query: CallbackQuery, state: FSMContext):
-    pickle_add_message = (
-    "<b>В данный момент функция pickle не доступна</b>\n\n"
-    "Уважаемые пользователи!\n\n"
-    "Мы временно приостановили работу функции сохранение pickle файлов для проведения технического обслуживания и улучшения сервиса. Мы стремимся предоставить вам лучший опыт использования, и для этого нам необходимо внести некоторые изменения.\n\n"
-    "Пожалуйста, попробуйте воспользоваться этой функцией позже. Мы извиняемся за доставленные неудобства и благодарим вас за понимание.\n\n"
-    "С уважением,\n"
-    "Команда поддержки"
-    )
+    await state.set_state(UserState.waiting_for_pickle_key_value)
     sent_message = await query.message.edit_text(
-        pickle_add_message,
-        parse_mode="HTML",
-        reply_markup=kb.back_to_pickle_keyboard(),
+        "Введите ваши элементы в формате 'ключ - значение':",
+        reply_markup=kb.back_to_pickle_keyboard()
     )
 
-    await state.update_data(last_message_id=sent_message.message_id)
+    await state.update_data(last_message_id=sent_message.message_id, key_value_pairs=[])
     await query.answer()
 
+# Обработчик для обработки введенных данных
+@router.message(UserState.waiting_for_pickle_key_value)
+async def process_pickle_key_value(message: Message, state: FSMContext):
+    user_data = await state.get_data()
+    key_value_pairs = user_data.get('key_value_pairs', [])
+    message_ids = user_data.get('message_ids', [])
+
+    try:
+        # Разбиваем сообщение на строки
+        lines = message.text.split('\n')
+
+        # Обрабатываем каждую строку
+        for line in lines:
+            # Убираем лишние пробелы и проверяем формат
+            line = line.strip()
+            if line:
+                key, value = line.split(' - ')
+                key_value_pairs.append((key.strip(), value.strip()))
+
+        # Обновляем данные в состоянии
+        await state.update_data(key_value_pairs=key_value_pairs)
+
+        # Переводим пользователя в состояние ожидания подтверждения
+        await state.set_state(UserState.waiting_for_pickle_confirmation)
+
+        # Отправляем сообщение с вопросом о добавлении новых данных
+        sent_message = await message.answer(
+            "Хотите ввести еще одно значение?",
+            reply_markup=kb.pickle_key_value_keyboard()
+        )
+
+        # Обновляем список message_ids
+        message_ids.append(sent_message.message_id)
+        message_ids.append(message.message_id)
+        await state.update_data(message_ids=message_ids)
+
+    except ValueError:
+        # Если формат неправильный, отправляем сообщение об ошибке
+        error_message = await message.answer(
+            "Неверный формат. Пожалуйста, введите данные в формате:\n"
+            "ключ - значение\n"
+            "Например:\n"
+            "яблоко - 200\n"
+            "апельсин - 400"
+        )
+        message_ids.append(error_message.message_id)
+        message_ids.append(message.message_id)
+        await state.update_data(message_ids=message_ids)
+
+# Обработчик для остановки ввода данных и сохранения в pickle файл
+@router.callback_query(lambda query: query.data == "pickle_stop")
+async def stop_pickle(query: CallbackQuery, state: FSMContext, bot: Bot):
+    user_data = await state.get_data()
+    key_value_pairs = user_data.get('key_value_pairs', [])
+    message_ids = user_data.get('message_ids', [])
+
+    if key_value_pairs:
+        user_id = query.from_user.id
+        file_name = f"Spam_Pickle/pickle_{user_id}.pkl"
+
+        # Убедитесь, что папка существует
+        if not os.path.exists('Spam_Pickle'):
+            os.makedirs('Spam_Pickle')
+
+        # Сохраняем данные в pickle файл
+        with open(file_name, 'wb') as file:
+            pickle.dump(key_value_pairs, file)
+
+        # Отправляем файл пользователю
+        document = FSInputFile(file_name)
+        await bot.send_document(chat_id=query.message.chat.id, document=document, caption="Ваш pickle файл")
+
+        await query.message.answer("Pickle файл успешно сохранен и отправлен.", reply_markup=kb.back_to_pickle_keyboard())
+    else:
+        await query.message.answer("Нет данных для сохранения.", reply_markup=kb.back_to_pickle_keyboard())
+
+    # Удаляем предыдущие сообщения
+    for message_id in message_ids:
+        try:
+            await bot.delete_message(chat_id=query.message.chat.id, message_id=message_id)
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
+    await state.clear()
+    await query.answer()
+
+# Обработчик для загрузки данных из pickle файла
 @router.callback_query(lambda query: query.data == "pickle_load")
-async def show_pickle_add(query: CallbackQuery, state: FSMContext):
-    pickle_load_message = (
-    "<b>В данный момент функция pickle не доступна</b>\n\n"
-    "Уважаемые пользователи!\n\n"
-    "Мы временно приостановили работу функции загрузки pickle файлов для проведения технического обслуживания и улучшения сервиса. Мы стремимся предоставить вам лучший опыт использования, и для этого нам необходимо внести некоторые изменения.\n\n"
-    "Пожалуйста, попробуйте воспользоваться этой функцией позже. Мы извиняемся за доставленные неудобства и благодарим вас за понимание.\n\n"
-    "С уважением,\n"
-    "Команда поддержки"
+async def show_pickle_load(query: CallbackQuery, state: FSMContext, bot: Bot):
+    user_id = query.from_user.id
+    file_name = f"Spam_Pickle/pickle_{user_id}.pkl"
+
+    await query.message.delete()
+
+    if os.path.exists(file_name):
+        # Загружаем данные из pickle файла
+        with open(file_name, 'rb') as file:
+            data = pickle.load(file)
+
+        # Отправляем данные пользователю
+        response_message = "Данные из pickle файла:\n\n"
+        for key, value in data:
+            response_message += f"{key} - {value}\n"
+
+        await bot.send_message(chat_id=query.message.chat.id, text=response_message)
+    else:
+        error_message = await bot.send_message(chat_id=query.message.chat.id, text="Файл не найден.")
+        await asyncio.sleep(3)
+        await bot.delete_message(chat_id=query.message.chat.id, message_id=error_message.message_id)
+
+    pickle_message = (
+        "<b>⚖️ Работа с pickle файлами ⚖️</b>\n\n"
+        "- Здесь вы можете сохранить текст в pickle файл или загрузить уже сохраненный файл.\n\n"
+        "Выберите одну из опций ниже ⬇️"
     )
-    sent_message = await query.message.edit_text(
-        pickle_load_message,
+    sent_message = await bot.send_message(
+        chat_id=query.message.chat.id,
+        text=pickle_message,
         parse_mode="HTML",
-        reply_markup=kb.back_to_pickle_keyboard(),
+        reply_markup=kb.pickle_keyboard()
     )
 
     await state.update_data(last_message_id=sent_message.message_id)
@@ -644,7 +686,7 @@ async def process_text(message: types.Message, state: FSMContext, bot: Bot):
 async def show_WILL_FUNC(query: CallbackQuery, state: FSMContext):
     WILL_FUNC_massege = "<b>🐾 Наше будущее 🐾</b>\n\n В скором времени будут добавлены такие функции как:  \n\n - Конвертация файлов в другие форматы 🔄📝 \n - Преобразование текста в pickle файл ☃️ \n"
     sent_message = await query.message.edit_text(
-        WILL_FUNC_massege, parse_mode="HTML", reply_markup=kb.back_to_start_keyboard()
+        WILL_FUNC_massege, parse_mode="HTML", reply_markup=kb.back_to_help_keyboard()
     )
 
     await state.update_data(last_message_id=sent_message.message_id)

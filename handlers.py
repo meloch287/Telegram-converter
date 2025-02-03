@@ -168,7 +168,7 @@ async def process_file(message, state: FSMContext):
 
     # Скачиваем файл в память
     file_content = await message.bot.download_file(file_path)
-    file_content = file_content.read().decode('utf-8')
+    file_content = file_content.read()
 
     try:
         # Конвертация файла в CSV
@@ -181,7 +181,7 @@ async def process_file(message, state: FSMContext):
         output_file.seek(0)
 
         # Отправка конвертированного файла
-        document_to_send = BufferedInputFile(output_file.getvalue().encode('utf-8'), filename=f"{os.path.splitext(file_name)[0]}.csv")
+        document_to_send = BufferedInputFile(output_file.getvalue(), filename=f"{os.path.splitext(file_name)[0]}.csv")
         await message.answer_document(document=document_to_send)
     except UnicodeDecodeError as e:
         logger.error(f"UnicodeDecodeError: {e}")
@@ -357,7 +357,7 @@ async def stop_csv(query: CallbackQuery, state: FSMContext):
         user_id = query.from_user.id
         file_name = f"Spam_CSV/CSV_{user_id}.csv"
 
-        with open(file_name, 'w', newline='', encoding='utf-8') as file:
+        with open(file_name, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["ключ : значение"])
             for key, value in key_value_pairs:
@@ -557,16 +557,9 @@ async def show_pickle_load(query: CallbackQuery, state: FSMContext, bot: Bot):
     await query.message.delete()
 
     if os.path.exists(file_name):
-        # Загружаем данные из pickle файла
-        with open(file_name, 'rb') as file:
-            data = pickle.load(file)
-
-        # Отправляем данные пользователю
-        response_message = "Данные из pickle файла:\n\n"
-        for key, value in data:
-            response_message += f"{key} - {value}\n"
-
-        await bot.send_message(chat_id=query.message.chat.id, text=response_message)
+        # Отправляем файл пользователю
+        document = FSInputFile(file_name)
+        await bot.send_document(chat_id=query.message.chat.id, document=document, caption="Ваш pickle файл")
     else:
         error_message = await bot.send_message(chat_id=query.message.chat.id, text="Файл не найден.")
         await asyncio.sleep(3)
@@ -654,7 +647,7 @@ async def process_text(message: types.Message, state: FSMContext, bot: Bot):
     user_id = message.from_user.id
     file_name = f"Spam_TXT/TEXT_{user_id}.txt"
 
-    with open(file_name, 'w', encoding='utf-8') as file:
+    with open(file_name, 'w') as file:
         file.write(message.text)
 
     success_message = await message.answer("Успешно сохранено")
@@ -684,7 +677,7 @@ async def process_text(message: types.Message, state: FSMContext, bot: Bot):
 
 @router.callback_query(lambda query: query.data == "WILL_FUNC")
 async def show_WILL_FUNC(query: CallbackQuery, state: FSMContext):
-    WILL_FUNC_massege = "<b>🐾 Наше будущее 🐾</b>\n\n В скором времени будут добавлены такие функции как:  \n\n - Конвертация файлов в другие форматы 🔄📝 \n - Преобразование текста в pickle файл ☃️ \n"
+    WILL_FUNC_massege = "<b>🐾 Наше будущее 🐾</b>\n\n В скором времени будут добавлены такие функции как:  \n\n - Конвертация файлов в другие форматы 🔄📝 \n"
     sent_message = await query.message.edit_text(
         WILL_FUNC_massege, parse_mode="HTML", reply_markup=kb.back_to_help_keyboard()
     )
